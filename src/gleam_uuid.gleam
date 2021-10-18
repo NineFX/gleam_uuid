@@ -8,7 +8,7 @@
 ////
 //// Unless you have a specific reason otherwise, you probably either want the
 //// random v4 or the time-based v1 version.
-//// 
+////
 //// ## Quick Usage:
 ////
 ////    import gleam_uuid
@@ -24,10 +24,10 @@
 ////    Ok(gleam_uuid.V4)
 
 import gleam/bit_builder.{BitBuilder}
-import gleam/bit_string.{BitString}
+import gleam/bit_string
 import gleam/list
 import gleam/string
-import gleam/atom.{Atom}
+import gleam/erlang/atom.{Atom}
 import gleam/dynamic.{Dynamic}
 import gleam/result
 
@@ -43,8 +43,6 @@ const rfc_variant = 2
 const urn_id = "urn:uuid:"
 
 const v1_version = 1
-
-const v3_version = 3
 
 const v4_version = 4
 
@@ -86,9 +84,9 @@ pub type Format {
   Urn
 }
 
-// 
+//
 // V1
-// 
+//
 /// How to generate the node for a V1 UUID.
 pub type V1Node {
   /// Will first attempt to use the network cards MAC address, then fall back to random
@@ -160,8 +158,8 @@ fn validate_custom_node(
 ) -> Result(BitBuilder, Nil) {
   case string.pop_grapheme(str) {
     Error(Nil) if index == 12 -> Ok(acc)
-    Ok(tuple(":", rest)) -> validate_custom_node(rest, index, acc)
-    Ok(tuple(c, rest)) ->
+    Ok(#(":", rest)) -> validate_custom_node(rest, index, acc)
+    Ok(#(c, rest)) ->
       case hex_to_int(c) {
         Ok(i) if index < 12 ->
           validate_custom_node(
@@ -190,7 +188,7 @@ fn validate_clock_seq(clock_seq: V1ClockSeq) -> Result(BitString, Nil) {
 // See 4.1.4.  Timestamp in RFC 4122
 // 60 bit timestamp of 100ns intervals since 00:00:00.00, 15 October 1582
 fn uuid1_time() -> BitString {
-  let tuple(mega_sec, sec, micro_sec) = os_timestamp()
+  let #(mega_sec, sec, micro_sec) = os_timestamp()
   let epoch = mega_sec * 1_000_000_000_000 + sec * 1_000_000 + micro_sec
   let timestamp = nanosec_intervals_offset + nanosec_intervals_factor * epoch
   <<timestamp:size(60)>>
@@ -220,7 +218,7 @@ fn default_uuid1_node() -> BitString {
 fn find_uuid1_node(ifs) -> Result(BitString, Nil) {
   case ifs {
     [] -> Error(Nil)
-    [tuple(_name, props), ..rest] ->
+    [#(_name, props), ..rest] ->
       case list.key_find(props, atom.create_from_string("hwaddr")) {
         Ok(ints) ->
           case list.length(ints) != 0 || list.all(ints, fn(x) { x == 0 }) {
@@ -235,30 +233,6 @@ fn find_uuid1_node(ifs) -> Result(BitString, Nil) {
 fn random_uuid1_node() -> BitString {
   assert <<rnd_hi:size(7), _:size(1), rnd_low:size(40)>> = strong_rand_bytes(6)
   <<rnd_hi:size(7), 1:size(1), rnd_low:size(40)>>
-}
-
-//
-// V3
-//
-/// Generates a version 3 (name-based, md5 hashed) UUID.
-/// Name must be a valid sequence of bytes
-pub fn v3(namespace: UUID, name: BitString) -> Result(UUID, Nil) {
-  case bit_size(name) % 8 == 0 {
-    True ->
-      namespace.value
-      |> bit_builder.from_bit_string()
-      |> bit_builder.append(name)
-      |> bit_builder.to_bit_string()
-      |> md5()
-      |> hash_to_uuid_value(v3_version)
-      |> UUID
-      |> Ok
-    False -> Error(Nil)
-  }
-}
-
-fn md5(data: BitString) -> BitString {
-  crypto_hash(atom.create_from_string("md5"), data)
 }
 
 fn hash_to_uuid_value(hash: BitString, ver: Int) -> BitString {
@@ -480,8 +454,8 @@ fn to_bitstring_help(
 ) -> Result(BitBuilder, Nil) {
   case string.pop_grapheme(str) {
     Error(Nil) if index == 32 -> Ok(acc)
-    Ok(tuple("-", rest)) if index < 32 -> to_bitstring_help(rest, index, acc)
-    Ok(tuple(c, rest)) if index < 32 ->
+    Ok(#("-", rest)) if index < 32 -> to_bitstring_help(rest, index, acc)
+    Ok(#(c, rest)) if index < 32 ->
       case hex_to_int(c) {
         Ok(i) ->
           to_bitstring_help(
@@ -547,13 +521,13 @@ fn int_to_hex(int: Int) -> String {
 }
 
 // Erlang Bridge
-external fn strong_rand_bytes(Int) -> String =
+external fn strong_rand_bytes(Int) -> BitString =
   "crypto" "strong_rand_bytes"
 
 external fn integer_to_binary(Int, Int) -> String =
   "erlang" "integer_to_binary"
 
-external fn os_timestamp() -> tuple(Int, Int, Int) =
+external fn os_timestamp() -> #(Int, Int, Int) =
   "os" "timestamp"
 
 // TODO: This Dynamic is an erlang posix(). Does that exist in Gleam somewhere?
@@ -561,7 +535,7 @@ external fn os_timestamp() -> tuple(Int, Int, Int) =
 // TODO: The return type is more dynamic than stated, we only care about one
 // particular key though that will always be the type we're looking for, change?
 external fn inet_getifaddrs() -> Result(
-  List(tuple(String, List(tuple(Atom, List(Int))))),
+  List(#(String, List(#(Atom, List(Int))))),
   Dynamic,
 ) =
   "inet" "getifaddrs"

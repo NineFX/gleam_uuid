@@ -79,20 +79,6 @@ pub fn v1_custom_node_and_clock_seq() {
 }
 
 //
-// V3 Tests
-//
-pub fn v3_dns_namespace_test() {
-  gleam_uuid.v3(gleam_uuid.dns_uuid(), <<"my.domain.com":utf8>>)
-  |> result.map(gleam_uuid.to_string)
-  |> should.equal(Ok("03BF0706-B7E9-33B8-AEE5-C6142A816478"))
-}
-
-pub fn v3_dont_crash_on_bad_name_test() {
-  gleam_uuid.v5(gleam_uuid.dns_uuid(), <<1:1>>)
-  |> should.equal(Error(Nil))
-}
-
-//
 // V4 Tests
 //
 pub fn v4_can_validate_self_test() {
