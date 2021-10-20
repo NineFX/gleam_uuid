@@ -1,0 +1,1 @@
+-record(uuid, {value :: bitstring()}).
