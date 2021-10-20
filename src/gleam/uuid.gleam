@@ -11,10 +11,10 @@
 ////
 //// ## Quick Usage:
 ////
-////    import gleam_uuid
+////    import gleam/uuid
 ////
 ////    // Generation
-////    > gleam_uuid.v4_string()
+////    > uuid.v4_string()
 ////    "f7e321c7-4a4b-4287-a8b8-1ae35b5538ce"
 ////
 ////    // Decoding
@@ -48,6 +48,10 @@ const v4_version = 4
 const v5_version = 5
 
 pub external type Atom
+
+pub type FromStringError {
+  AtomNotLoaded
+}
 
 /// Opaque type for holding onto a UUID.
 /// Opaque so you know that if you have a UUID it is valid.
@@ -219,8 +223,9 @@ fn default_uuid1_node() -> BitString {
 fn find_uuid1_node(ifs) -> Result(BitString, Nil) {
   case ifs {
     [] -> Error(Nil)
-    [#(_name, props), ..rest] ->
-      case list.key_find(props, atom_from_string("hwaddr")) {
+    [#(_name, props), ..rest] -> {
+      assert Ok(hwaddr) = atom_from_string("hwaddr")
+      case list.key_find(props, hwaddr) {
         Ok(ints) ->
           case list.length(ints) != 0 || list.all(ints, fn(x) { x == 0 }) {
             True -> find_uuid1_node(rest)
@@ -228,6 +233,7 @@ fn find_uuid1_node(ifs) -> Result(BitString, Nil) {
           }
         _ -> find_uuid1_node(rest)
       }
+    }
   }
 }
 
@@ -306,7 +312,8 @@ pub fn v5(namespace: UUID, name: BitString) -> Result(UUID, Nil) {
 }
 
 fn sha1(data: BitString) -> BitString {
-  assert <<sha:128, _:32>> = crypto_hash(atom_from_string("sha"), data)
+  assert Ok(sha) = atom_from_string("sha")
+  assert <<sha:128, _:32>> = crypto_hash(sha, data)
   <<sha:128>>
 }
 
@@ -550,5 +557,5 @@ external fn crypto_hash(algo: Atom, data: BitString) -> BitString =
 external fn bit_size(bs: BitString) -> Int =
   "erlang" "bit_size"
 
-external fn atom_from_string(s: String) -> Atom =
+external fn atom_from_string(s: String) -> Result(Atom, FromStringError) =
   "atom_ffi" "atom_from_string"
